@@ -6,7 +6,7 @@ from fastapi import FastAPI, Depends, HTTPException, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from daily_dragon.auth.authenticate import authenticate
+from daily_dragon.auth.cognito import cognito_auth, DailyDragonCognitoToken
 from daily_dragon.exceptions import WordAlreadyExistsError
 from daily_dragon.service.vocabulary_service import VocabularyService
 
@@ -19,6 +19,7 @@ logging.basicConfig(
 load_dotenv()
 
 app = FastAPI()
+
 app.add_middleware(CORSMiddleware,
                    allow_origins=["http://localhost:5173"],
                    allow_credentials=True,
@@ -33,7 +34,7 @@ class WordEntry(BaseModel):
 
 @app.post("/daily-dragon/vocabulary", status_code=201)
 def add_word(word_entry: WordEntry, vocabulary_service: VocabularyService = Depends(),
-             username: str = Depends(authenticate)):
+             auth: DailyDragonCognitoToken = Depends(cognito_auth.auth_required)):
     word = word_entry.word
     try:
         vocabulary_service.add_word(word_entry.word)
@@ -43,8 +44,8 @@ def add_word(word_entry: WordEntry, vocabulary_service: VocabularyService = Depe
 
 
 @app.get("/daily-dragon/vocabulary")
-def get_vocabulary(vocabulary_service: VocabularyService = Depends(), username: str = Depends(authenticate),
-                   count: Optional[int] = Query(None, gt=0)):
+def get_vocabulary(vocabulary_service: VocabularyService = Depends(), count: Optional[int] = Query(None, gt=0),
+                   auth: DailyDragonCognitoToken = Depends(cognito_auth.auth_required)):
     if count is not None:
         vocabulary = vocabulary_service.get_random_vocabulary(count)
     else:
@@ -53,7 +54,8 @@ def get_vocabulary(vocabulary_service: VocabularyService = Depends(), username: 
 
 
 @app.delete("/daily-dragon/vocabulary/{word}")
-def delete_word(word: str, vocabulary_service: VocabularyService = Depends(), username: str = Depends(authenticate)):
+def delete_word(word: str, vocabulary_service: VocabularyService = Depends(),
+                auth: DailyDragonCognitoToken = Depends(cognito_auth.auth_required)):
     vocabulary_service.delete_word(word)
     return {"message": f"Word {word} deleted"}
 
